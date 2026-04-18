@@ -1,0 +1,97 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+html, body, #root {
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background-color: transparent;
+  color: #333333;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  overscroll-behavior: none;
+}
+
+/* Custom scrollbar for webkit */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #444;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@keyframes slideInUp {
+  from { transform: translate(-50%, 100%); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+.animate-alert-in {
+  animation: slideInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media print {
+  /* 1. Ocultar componentes de UI */
+  #sidebar-panel, 
+  #notelist-panel, 
+  #editor-header, 
+  #format-toolbar, 
+  .print\:hidden, 
+  button,
+  [style*="z-[999999]"], 
+  .absolute.bottom-6,
+  .shadow-2xl,
+  .shadow-lg {
+    display: none !important;
+  }
+
+  /* 2. Forzar altura automática y visibilidad total para capturar todo el documento */
+  html, body, #root, #app-root-container, #editor-container, .flex-1, #preview-area-wrapper {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    display: block !important;
+    position: static !important;
+    background: white !important;
+    color: black !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* 3. Limpieza total de fondos oscuros del tema */
+  #app-root-container, #preview-area-wrapper, #preview-area {
+    background-color: white !important;
+    background-image: none !important;
+  }
+
+  /* 4. Estilo de contenido (Prose) */
+  #preview-area {
+    padding: 10mm 15mm !important;
+    max-width: none !important;
+    color: black !important;
+  }
+
+  #preview-area * {
+    color: black !important;
+    background: transparent !important;
+  }
+
+  /* Evitar saltos de página dentro de imágenes o bloques de código si es posible */
+  pre, img, blockquote {
+    page-break-inside: avoid;
+  }
+}

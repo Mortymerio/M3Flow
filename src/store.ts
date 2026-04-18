@@ -1,0 +1,324 @@
+import { create } from 'zustand';
+
+interface Notebook {
+  id: string;
+  name: string;
+  parentId: string | null;
+  createdAt: number;
+}
+
+interface Note {
+  id: string;
+  title: string;
+  body: string;
+  notebookId: string;
+  status: string;
+  isPinned: number;
+  reminderAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+interface NoteTag {
+  noteId: string;
+  tagId: string;
+}
+
+interface AppState {
+  notebooks: Notebook[];
+  notes: Note[];
+  tags: Tag[];
+  noteTags: NoteTag[];
+  isSidebarCollapsed: boolean;
+  isNoteListCollapsed: boolean;
+  toggleSidebar: () => void;
+  toggleNoteList: () => void;
+  activeNotebookId: string | null;
+  activeNoteId: string | null;
+  activeStatusId: string | null;
+  activeTagId: string | null;
+  searchQuery: string;
+  sortOrder: 'default' | 'alphabetical';
+  editorMode: 'normal' | 'vim' | 'emacs';
+  theme: 'cyber-ronin' | 'cloud-nine' | 'arctic-night' | 'midnight-indigo' | 'custom';
+  customColors: {
+    sidebarBg: string;
+    sidebarHeader: string;
+    listBg: string;
+    listHeader: string;
+    editorBg: string;
+    editorHeader: string;
+  };
+  isCustomMenuOpen: boolean;
+  editorFontSize: number;
+  showHelpOverlay: boolean;
+  showAboutModal: boolean;
+  
+  // Acciones
+  setSearchQuery: (query: string) => void;
+  setSortOrder: (order: 'default' | 'alphabetical') => void;
+  setActiveNotebook: (id: string | null) => void;
+  setActiveStatus: (statusId: string | null) => void;
+  setActiveTag: (tagId: string | null) => void;
+  setActiveNote: (id: string | null) => void;
+  setEditorMode: (mode: 'normal' | 'vim' | 'emacs') => void;
+  setTheme: (theme: 'cyber-ronin' | 'cloud-nine' | 'arctic-night' | 'midnight-indigo' | 'custom') => void;
+  setCustomColor: (key: string, color: string) => void;
+  setCustomMenuOpen: (open: boolean) => void;
+  setEditorFontSize: (size: number) => void;
+  setShowHelpOverlay: (show: boolean) => void;
+  setShowAboutModal: (show: boolean) => void;
+  loadInitialData: () => Promise<void>;
+  saveNote: (id: string, title: string, body: string) => Promise<void>;
+  createNote: () => void;
+  moveNotebook: (notebookId: string, newParentId: string | null) => Promise<void>;
+  moveNote: (noteId: string, notebookId: string) => Promise<void>;
+  updateNoteStatus: (noteId: string, status: string) => Promise<void>;
+  createTag: (name: string, color: string) => Promise<string>;
+  updateTag: (id: string, name: string, color: string) => Promise<void>;
+  deleteTag: (id: string) => Promise<void>;
+  toggleNoteTag: (noteId: string, tagId: string) => Promise<void>;
+  updateNoteReminder: (noteId: string, reminderAt: number | null) => Promise<void>;
+  createNotebook: (name: string, parentId: string | null) => Promise<void>;
+  deleteNote: (id: string | null) => Promise<void>;
+  deleteNotebook: (id: string) => Promise<void>;
+}
+
+export const useStore = create<AppState>((set, get) => ({
+  isSidebarCollapsed: false,
+  isNoteListCollapsed: false,
+  toggleSidebar: () => set(state => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
+  toggleNoteList: () => set(state => ({ isNoteListCollapsed: !state.isNoteListCollapsed })),
+  notebooks: [],
+  notes: [],
+  tags: [],
+  noteTags: [],
+  activeNotebookId: null,
+  activeNoteId: null,
+  activeStatusId: null,
+  activeTagId: null,
+  searchQuery: '',
+  sortOrder: 'default',
+  editorMode: (localStorage.getItem('editorMode') as any) || 'normal',
+  theme: (localStorage.getItem('theme') as any) || 'cyber-ronin',
+  customColors: JSON.parse(localStorage.getItem('customColors') || '{"sidebarBg":"#1e2329","sidebarHeader":"#171b1f","listBg":"#252b33","listHeader":"#1e2329","editorBg":"#15191e","editorHeader":"#1e2329"}'),
+  isCustomMenuOpen: false,
+  editorFontSize: parseInt(localStorage.getItem('fontSize') || '14') || 14,
+  showHelpOverlay: localStorage.getItem('hasSeenHelp') !== 'true',
+  showAboutModal: false,
+
+  setSearchQuery: (query) => set({ searchQuery: query }),
+  setSortOrder: (order) => set({ sortOrder: order }),
+  setActiveNotebook: (id) => set({ activeNotebookId: id, activeStatusId: null, activeTagId: null, activeNoteId: null }),
+  setActiveStatus: (id) => set({ activeStatusId: id, activeNotebookId: null, activeTagId: null, activeNoteId: null }),
+  setActiveTag: (id) => set({ activeTagId: id, activeNotebookId: null, activeStatusId: null, activeNoteId: null }),
+  setActiveNote: (id) => set({ activeNoteId: id }),
+  setEditorMode: (mode) => {
+    localStorage.setItem('editorMode', mode);
+    set({ editorMode: mode });
+  },
+  setTheme: (theme) => {
+    localStorage.setItem('theme', theme);
+    set({ theme });
+  },
+  setCustomColor: (key, color) => {
+    const { customColors } = get();
+    const newColors = { ...customColors, [key]: color };
+    localStorage.setItem('customColors', JSON.stringify(newColors));
+    set({ customColors: newColors });
+  },
+  setCustomMenuOpen: (open) => set({ isCustomMenuOpen: open }),
+  setEditorFontSize: (size) => {
+    localStorage.setItem('fontSize', size.toString());
+    set({ editorFontSize: size });
+  },
+  setShowHelpOverlay: (show) => {
+    localStorage.setItem('hasSeenHelp', 'true');
+    set({ showHelpOverlay: show });
+  },
+  setShowAboutModal: (show) => set({ showAboutModal: show }),
+
+  loadInitialData: async () => {
+    try {
+      const dbAPI = (window as any).dbAPI;
+      const [notebooks, notes, tags, noteTags] = await Promise.all([
+        dbAPI.getNotebooks(),
+        dbAPI.getNotes(),
+        dbAPI.getTags ? dbAPI.getTags() : [],
+        dbAPI.getNoteTags ? dbAPI.getNoteTags() : []
+      ]);
+      set({ notebooks, notes, tags, noteTags });
+      
+      // Auto-seleccionar primer elemento
+      if (notebooks.length > 0) {
+        set({ activeNotebookId: notebooks[0].id });
+      }
+      if (notes.length > 0) {
+        set({ activeNoteId: notes[0].id });
+      }
+    } catch (e) {
+      console.error('Error cargando SQLite', e);
+    }
+  },
+
+  saveNote: async (id, title, body) => {
+    const { notes } = get();
+    const existingNote = notes.find(n => n.id === id);
+    let targetNbId = existingNote ? existingNote.notebookId : null;
+
+    if (!existingNote) {
+       // Si por alguna razón no existía (no debería ocurrir)
+       const { activeNotebookId, notebooks } = get();
+       targetNbId = activeNotebookId || (notebooks.length > 0 ? notebooks[0].id : null);
+    }
+
+    await (window as any).dbAPI.saveNote({
+      id,
+      title,
+      body,
+      notebookId: targetNbId,
+    });
+    
+    // Actualizar estado local
+    set({
+      notes: notes.map((n) => n.id === id ? { ...n, title, body, updatedAt: Date.now() } : n)
+    });
+  },
+
+  createNote: async () => {
+    const { activeNotebookId, notes, notebooks } = get();
+    const newId = 'note-' + Date.now();
+    const defaultNbId = notebooks.length > 0 ? notebooks[0].id : null;
+    const targetNbId = activeNotebookId || defaultNbId;
+
+    const newNote = {
+      id: newId,
+      title: 'Untitled Note',
+      body: '# Untitled Note\n\nStart typing here...',
+      notebookId: targetNbId as any, // fallback a null si no hay notebooks
+      status: 'none',
+      isPinned: 0,
+      reminderAt: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    
+    await (window as any).dbAPI.saveNote(newNote);
+    
+    set({
+      notes: [newNote, ...notes],
+      activeNoteId: newId
+    });
+  },
+
+  moveNotebook: async (notebookId, newParentId) => {
+    if (notebookId === newParentId) return;
+    set(state => ({
+      notebooks: state.notebooks.map(nb => 
+        nb.id === notebookId ? { ...nb, parentId: newParentId } : nb
+      )
+    }));
+    try {
+      if ((window as any).dbAPI.moveNotebook) {
+        await (window as any).dbAPI.moveNotebook(notebookId, newParentId);
+      }
+    } catch(e) {}
+  },
+  moveNote: async (noteId, notebookId) => {
+    set(state => ({
+      notes: state.notes.map(n => n.id === noteId ? { ...n, notebookId, updatedAt: Date.now() } : n)
+    }));
+    try {
+      if ((window as any).dbAPI.moveNote) await (window as any).dbAPI.moveNote(noteId, notebookId);
+    } catch(e) {}
+  },
+  updateNoteStatus: async (noteId, status) => {
+    set(state => ({
+      notes: state.notes.map(n => n.id === noteId ? { ...n, status, updatedAt: Date.now() } : n)
+    }));
+    try {
+      if ((window as any).dbAPI.updateNoteStatus) await (window as any).dbAPI.updateNoteStatus(noteId, status);
+    } catch(e) {}
+  },
+  updateNoteReminder: async (noteId, reminderAt) => {
+    set(state => ({
+      notes: state.notes.map(n => n.id === noteId ? { ...n, reminderAt, updatedAt: Date.now() } : n)
+    }));
+    try {
+      if ((window as any).dbAPI.updateNoteReminder) await (window as any).dbAPI.updateNoteReminder(noteId, reminderAt);
+    } catch(e) {}
+  },
+  createTag: async (name, color) => {
+    const id = 'tag-' + Date.now();
+    const newTag = { id, name, color };
+    set(state => ({ tags: [...state.tags, newTag] }));
+    try {
+      if ((window as any).dbAPI.createTag) await (window as any).dbAPI.createTag(newTag);
+    } catch(e) {}
+    return id;
+  },
+  updateTag: async (id, name, color) => {
+    set(state => ({ tags: state.tags.map(t => t.id === id ? { ...t, name, color } : t) }));
+    try {
+      if ((window as any).dbAPI.updateTag) await (window as any).dbAPI.updateTag({ id, name, color });
+    } catch(e) {}
+  },
+  deleteTag: async (id) => {
+    set(state => ({ 
+      tags: state.tags.filter(t => t.id !== id),
+      noteTags: state.noteTags.filter(nt => nt.tagId !== id)
+    }));
+    try {
+      if ((window as any).dbAPI.deleteTag) await (window as any).dbAPI.deleteTag(id);
+    } catch(e) {}
+  },
+  toggleNoteTag: async (noteId, tagId) => {
+    set(state => {
+      const exists = state.noteTags.find(nt => nt.noteId === noteId && nt.tagId === tagId);
+      if (exists) {
+        return { noteTags: state.noteTags.filter(nt => !(nt.noteId === noteId && nt.tagId === tagId)) };
+      }
+      return { noteTags: [...state.noteTags, { noteId, tagId }] };
+    });
+    try {
+      if ((window as any).dbAPI.toggleNoteTag) await (window as any).dbAPI.toggleNoteTag(noteId, tagId);
+    } catch(e) {}
+  },
+  createNotebook: async (name, parentId) => {
+    const id = 'nb-' + Date.now();
+    const newNB = { id, name, parentId, createdAt: Date.now() };
+    set(state => ({ notebooks: [...state.notebooks, newNB] }));
+    try {
+      const dbAPI = (window as any).dbAPI;
+      if (dbAPI && dbAPI.saveNotebook) await dbAPI.saveNotebook(newNB);
+    } catch(e) {}
+  },
+  deleteNote: async (id) => {
+    if (!id) return;
+    set(state => ({ 
+      notes: state.notes.filter(n => n.id !== id),
+      activeNoteId: state.activeNoteId === id ? null : state.activeNoteId
+    }));
+    try {
+      const dbAPI = (window as any).dbAPI;
+      if (dbAPI && dbAPI.deleteNote) await dbAPI.deleteNote(id);
+    } catch(e) {}
+  },
+  deleteNotebook: async (id) => {
+    set(state => ({ 
+      notebooks: state.notebooks.filter(nb => nb.id !== id),
+      notes: state.notes.filter(n => n.notebookId !== id),
+      activeNotebookId: state.activeNotebookId === id ? null : state.activeNotebookId
+    }));
+    try {
+      const dbAPI = (window as any).dbAPI;
+      if (dbAPI && dbAPI.deleteNotebook) await dbAPI.deleteNotebook(id);
+    } catch(e) {}
+  }
+}));
