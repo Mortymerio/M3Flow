@@ -672,7 +672,7 @@ const Editor = () => {
                        </button>
                      </div>
                      <textarea
-                       ref={(el) => el && setTimeout(() => el.focus(), 50)}
+                       ref={(el) => { if (el) setTimeout(() => el.focus(), 50); }}
                        className={`w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs outline-none focus:border-blue-500 transition-colors mb-2 resize-none h-16 shadow-inner`}
                        placeholder="e.g. Translate to Spanish, fix grammar, make it sound professional..."
                        value={aiPrompt}
