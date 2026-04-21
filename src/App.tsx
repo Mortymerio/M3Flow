@@ -70,14 +70,14 @@ const App = () => {
   }, [loadInitialData, sidebarWidth]);
 
   // Recordatorios (Alert System Watchdog)
-  const notes = useStore(state => state.notes);
   const triggeredReminders = useRef<Set<string>>(new Set());
   const [activeAlert, setActiveAlert] = useState<string | null>(null); // Title of the active alert
 
   useEffect(() => {
     const checkReminders = () => {
       const now = Date.now();
-      notes.forEach(note => {
+      const currentNotes = useStore.getState().notes;
+      currentNotes.forEach(note => {
         if (note.reminderAt && now >= note.reminderAt && !triggeredReminders.current.has(note.id)) {
           // Trigger Alert!
           setActiveAlert(note.title);
@@ -100,7 +100,24 @@ const App = () => {
     }
 
     return () => clearInterval(interval);
-  }, [notes]); // Re-run only when notes change
+  }, []); // Re-run only once on mount
+
+  // Global Hotkeys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        useStore.getState().createNote();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        useStore.getState().toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
 
   const customColors = useStore(state => state.customColors);
   const isCustomMenuOpen = useStore(state => state.isCustomMenuOpen);

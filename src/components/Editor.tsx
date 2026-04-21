@@ -10,7 +10,7 @@ import { emacs } from '@replit/codemirror-emacs';
 import { languages } from '@codemirror/language-data';
 import { useStore } from '../store';
 import { THEMES } from '../themes';
-import { Download, FileText, Layout, Eye, PenTool, Book, Settings2, Plus, ChevronDown, Trash2, Search, Check, Columns, LayoutList, Bell, Calendar } from 'lucide-react';
+import { Download, FileText, Layout, Eye, PenTool, Book, Settings2, Plus, ChevronDown, Trash2, Search, Check, Columns, LayoutList, Bell, Calendar, Sparkles, Loader2 } from 'lucide-react';
 
 const mdParser = new MarkdownIt({
   html: true,
@@ -57,12 +57,28 @@ const Editor = () => {
 
   const [content, setContent] = useState('');
   const [viewMode, setViewMode] = useState<'split' | 'edit' | 'preview'>('split');
-  const [dropdownOpen, setDropdownOpen] = useState<'none' | 'notebook' | 'status' | 'tags' | 'settings' | 'reminder'>('none');
+  const [dropdownOpen, setDropdownOpen] = useState<'none' | 'notebook' | 'status' | 'tags' | 'settings' | 'reminder' | 'ai' | 'ai_config'>('none');
   const [tagSearch, setTagSearch] = useState('');
   const [splitRatio, setSplitRatio] = useState(0.5);
   const isResizingSplit = useRef(false);
   const editorRef = useRef<any>(null);
   const [tempReminder, setTempReminder] = useState<number | null>(null);
+
+  // AI State
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const activeAiProvider = useStore(state => state.activeAiProvider);
+  const openAiKey = useStore(state => state.openAiKey);
+  const geminiKey = useStore(state => state.geminiKey);
+  const claudeKey = useStore(state => state.claudeKey);
+  const githubToken = useStore(state => state.githubToken);
+  const azureUrl = useStore(state => state.azureUrl);
+  const azureKey = useStore(state => state.azureKey);
+  const ollamaUrl = useStore(state => state.ollamaUrl);
+  const ollamaModel = useStore(state => state.ollamaModel);
+  const lmStudioUrl = useStore(state => state.lmStudioUrl);
+  const setAiConfig = useStore(state => state.setAiConfig);
+  const setActiveAiProvider = useStore(state => state.setActiveAiProvider);
 
   const tags = useStore(state => state.tags);
   const noteTags = useStore(state => state.noteTags);
@@ -74,6 +90,85 @@ const Editor = () => {
   const deleteTag = useStore(state => state.deleteTag);
   const setCustomColor = useStore(state => state.setCustomColor);
   const customColors = useStore(state => state.customColors);
+
+  const handleAiAction = async () => {
+    if (!aiPrompt.trim() || isAiLoading) return;
+    setIsAiLoading(true);
+    let resultText = '';
+
+    try {
+      if (activeAiProvider === 'ollama') {
+        const res = await fetch(`${ollamaUrl}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: ollamaModel || "llama3", // Uses the configured model
+            prompt: `Instruction: ${aiPrompt}\n\nNote Document:\n${content}\n\nOutput only the resulting markdown content without conversational fill.`,
+            stream: false
+          })
+        });
+        const data = await res.json();
+        resultText = data.response;
+      } else if (activeAiProvider === 'openai' || activeAiProvider === 'lmstudio' || activeAiProvider === 'github' || activeAiProvider === 'azure') {
+        const isLocal = activeAiProvider === 'lmstudio';
+        const isGithub = activeAiProvider === 'github';
+        const isAzure = activeAiProvider === 'azure';
+        
+        let url = 'https://api.openai.com/v1/chat/completions';
+        if (isLocal) url = `${lmStudioUrl}/v1/chat/completions`;
+        if (isGithub) url = 'https://models.inference.ai.azure.com/chat/completions';
+        if (isAzure) url = azureUrl; // Must be full deployment URL
+        
+        const headers: any = { 'Content-Type': 'application/json' };
+        
+        if (isAzure) {
+           headers['api-key'] = azureKey; // Azure uses api-key header
+        } else {
+           let token = openAiKey;
+           if (isLocal) token = 'lm-studio';
+           if (isGithub) token = githubToken;
+           headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: isLocal ? "local-model" : "gpt-4o",
+            messages: [
+              { role: "system", content: "You are a helpful markdown editor assistant. Obey the user's instructions over the provided document. Output only the requested modified content in raw markdown." },
+              { role: "user", content: `Instruction: ${aiPrompt}\n\nDocument:\n${content}` }
+            ]
+          })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message || 'API Error');
+        resultText = data.choices?.[0]?.message?.content;
+      } else if (activeAiProvider === 'gemini') {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `System: You are a markdown editor assistant. Output only the requested modified content.\nInstruction: ${aiPrompt}\n\nDocument:\n${content}` }] }]
+          })
+        });
+        const data = await res.json();
+        resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      }
+
+      if (resultText) {
+        setContent(resultText);
+        setDropdownOpen('none');
+        setAiPrompt('');
+      } else {
+         alert('AI Provider returned an empty response. Check settings or model.');
+      }
+    } catch (e: any) {
+      alert('AI Request failed: ' + e.message);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   const editorExtensions: any[] = [markdown({ base: markdownLanguage, codeLanguages: languages })];
   if (editorMode === 'vim') editorExtensions.push(vim());
@@ -533,14 +628,6 @@ const Editor = () => {
                     <div className="text-[10px] opacity-40 italic py-1 border border-dashed rounded px-2">Choose 'Custom' theme to edit colors</div>
                   )}
                 </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] opacity-70">Font Size</label>
-                  <div className="flex items-center gap-3">
-                    <input type="range" min="12" max="24" value={editorFontSize} onChange={(e) => useStore.getState().setEditorFontSize(parseInt(e.target.value))} className="flex-1 accent-blue-500" />
-                    <span className="text-[10px] font-bold w-4">{editorFontSize}</span>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -551,7 +638,7 @@ const Editor = () => {
       <div className="flex-1 flex flex-col overflow-hidden no-drag" style={{ WebkitAppRegion: 'no-drag' } as any}>
         
         {/* Formatting Toolbar */}
-        <div id="format-toolbar" className={`flex items-center justify-between px-4 py-2 border-b ${themeStyle.editorBorder} opacity-80 print:hidden`}>
+        <div id="format-toolbar" className={`flex items-center justify-between px-4 py-2 border-b ${themeStyle.editorBorder} opacity-80 print:hidden relative z-20`}>
            <div className="flex gap-4">
               <span onClick={() => applyFormat('bold')} className="font-bold cursor-pointer hover:opacity-70 px-1">B</span>
               <span onClick={() => applyFormat('italic')} className="italic cursor-pointer hover:opacity-70 px-1">I</span>
@@ -559,6 +646,118 @@ const Editor = () => {
               <span className={`mx-2 w-px h-4 border-l ${themeStyle.editorBorder} opacity-50`}></span>
               <span onClick={() => applyFormat('code')} className="cursor-pointer hover:opacity-70 px-1 font-mono">&lt;/&gt;</span>
               <span onClick={() => applyFormat('h1')} className="cursor-pointer hover:opacity-70 px-1 font-bold">A</span>
+              
+              <span className={`mx-2 w-px h-4 border-l ${themeStyle.editorBorder} opacity-50`}></span>
+              <div className="relative">
+                 <button 
+                   onClick={(e) => { e.stopPropagation(); setDropdownOpen(dropdownOpen === 'ai' ? 'none' : 'ai'); }} 
+                   className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md hover:bg-blue-500/20 text-blue-500 transition-colors ${dropdownOpen === 'ai' ? 'bg-blue-500/20' : ''}`}
+                 >
+                   <Sparkles size={14} />
+                   <span className="text-[11px] font-bold">AI</span>
+                 </button>
+                 
+                 {dropdownOpen === 'ai' && (
+                   <div 
+                     onClick={(e) => e.stopPropagation()}
+                     className={`absolute top-8 left-0 w-64 p-3 rounded-xl shadow-2xl border z-[999] ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder} animate-in fade-in slide-in-from-top-2 duration-200`}
+                   >
+                     <div className="flex items-center justify-between mb-2 opacity-70">
+                       <div className="flex items-center gap-2">
+                         <Sparkles size={12} className="text-blue-500" />
+                         <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Ask {activeAiProvider}</span>
+                       </div>
+                       <button onClick={(e) => { e.stopPropagation(); setDropdownOpen('ai_config'); }} className="hover:text-blue-400 hover:rotate-90 transition-all cursor-pointer p-1" title="Configure AI Provider">
+                         <Settings2 size={12} />
+                       </button>
+                     </div>
+                     <textarea
+                       ref={(el) => el && setTimeout(() => el.focus(), 50)}
+                       className={`w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs outline-none focus:border-blue-500 transition-colors mb-2 resize-none h-16 shadow-inner`}
+                       placeholder="e.g. Translate to Spanish, fix grammar, make it sound professional..."
+                       value={aiPrompt}
+                       onChange={(e) => setAiPrompt(e.target.value)}
+                       onKeyDown={(e) => {
+                         if (e.key === 'Enter' && !e.shiftKey) {
+                           e.preventDefault();
+                           handleAiAction();
+                         }
+                       }}
+                     />
+                     <button
+                       onClick={handleAiAction}
+                       disabled={isAiLoading || !aiPrompt.trim()}
+                       className="w-full py-1.5 rounded-lg bg-blue-500 text-white text-[10px] font-bold hover:bg-blue-600 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                     >
+                       {isAiLoading ? <><Loader2 size={12} className="animate-spin" /> GENERATING...</> : 'MAGIC'}
+                     </button>
+                   </div>
+                 )}
+
+                 {dropdownOpen === 'ai_config' && (
+                    <div 
+                      onClick={(e) => e.stopPropagation()}
+                      className={`absolute top-8 left-0 w-64 p-3 rounded-xl shadow-2xl border z-[999] ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder} animate-in fade-in slide-in-from-top-2 duration-200`}
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <Settings2 size={12} className="text-blue-500" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Configure AI Engine</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 mb-2">
+                        <select 
+                          value={activeAiProvider} 
+                          onChange={(e) => setActiveAiProvider(e.target.value as any)}
+                          className="bg-black/20 w-full rounded p-1.5 text-[11px] outline-none border border-white/5"
+                        >
+                          <option value="ollama">Ollama (Local)</option>
+                          <option value="lmstudio">LM Studio (Local)</option>
+                          <option value="openai">OpenAI (GPT)</option>
+                          <option value="azure">MS Copilot (Azure OpenAI)</option>
+                          <option value="github">GitHub Copilot Models</option>
+                          <option value="gemini">Google Gemini</option>
+                          <option value="claude">Anthropic Claude</option>
+                        </select>
+                      </div>
+                      
+                      {activeAiProvider === 'ollama' && (
+                        <div className="flex flex-col gap-1.5">
+                          <input type="text" placeholder="URL (ej: http://localhost:11434)" value={ollamaUrl} onChange={(e) => setAiConfig('ollamaUrl', e.target.value)} className="bg-black/20 text-[10px] p-2 rounded w-full border border-white/5" />
+                          <input type="text" placeholder="Model Name (ej: llama3, gemma)" value={ollamaModel} onChange={(e) => setAiConfig('ollamaModel', e.target.value)} className="bg-black/20 text-[10px] p-2 rounded w-full border border-white/5" />
+                        </div>
+                      )}
+                      {activeAiProvider === 'lmstudio' && (
+                        <input type="text" placeholder="LM Studio URL" value={lmStudioUrl} onChange={(e) => setAiConfig('lmStudioUrl', e.target.value)} className="bg-black/20 text-[10px] p-2 rounded w-full border border-white/5" />
+                      )}
+                      {activeAiProvider === 'openai' && (
+                        <input type="password" placeholder="sk-..." value={openAiKey} onChange={(e) => setAiConfig('openAiKey', e.target.value)} className="bg-black/20 text-[10px] p-2 rounded w-full border border-white/5" />
+                      )}
+                      {activeAiProvider === 'azure' && (
+                        <div className="flex flex-col gap-1.5">
+                          <input type="text" placeholder="Azure URL (ej: https://...)" value={azureUrl} onChange={(e) => setAiConfig('azureUrl', e.target.value)} className="bg-black/20 text-[10px] p-2 rounded w-full border border-white/5" />
+                          <input type="password" placeholder="Azure API Key" value={azureKey} onChange={(e) => setAiConfig('azureKey', e.target.value)} className="bg-black/20 text-[10px] p-2 rounded w-full border border-white/5" />
+                        </div>
+                      )}
+                      {activeAiProvider === 'github' && (
+                        <input type="password" placeholder="GitHub Token (ghp_...)" value={githubToken} onChange={(e) => setAiConfig('githubToken', e.target.value)} className="bg-black/20 text-[10px] p-2 rounded w-full border border-white/5" />
+                      )}
+                      {activeAiProvider === 'gemini' && (
+                        <input type="password" placeholder="Gemini API Key" value={geminiKey} onChange={(e) => setAiConfig('geminiKey', e.target.value)} className="bg-black/20 text-[10px] p-2 rounded w-full border border-white/5" />
+                      )}
+                      {activeAiProvider === 'claude' && (
+                        <input type="password" placeholder="sk-ant-..." value={claudeKey} onChange={(e) => setAiConfig('claudeKey', e.target.value)} className="bg-black/20 text-[10px] p-2 rounded w-full border border-white/5" />
+                      )}
+                    </div>
+                  )}
+               </div>
+
+               <span className={`mx-2 w-px h-4 border-l ${themeStyle.editorBorder} opacity-50`}></span>
+                
+                {/* Font Size Setup */}
+                <div className="flex items-center gap-2">
+                   <span className="text-[10px] opacity-50 font-bold">Aa</span>
+                   <input type="range" min="12" max="24" value={editorFontSize} onChange={(e) => useStore.getState().setEditorFontSize(parseInt(e.target.value))} className="w-16 h-1 accent-blue-500 rounded-lg appearance-none bg-black/20 cursor-pointer" />
+                </div>
            </div>
 
            <div className={`flex items-center p-0.5 rounded-lg border relative z-[50] ${themeStyle.editorBorder} ${themeStyle.sidebarHover.replace('hover:', '')}`}>

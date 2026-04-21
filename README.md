@@ -7,6 +7,7 @@ M3Flow es una plataforma de escritura de alto rendimiento diseñada para la clar
 
 ## 🔥 Novedades de esta Versión
 
+- **🤖 Multi-Provider AI Engine:** Integra inteligencia artificial directamente en tu editor. Conéctate libremente con Ollama (Local), LM Studio, OpenAI (GPT), Gemini o Claude, usando un prompt libre para modificar y mejorar tus notas.
 - **🔍 Command Palette (Ctrl+P):** Navegación instantánea. Busca en el contenido de todas tus notas y salta entre notebooks en milisegundos con una interfaz limpia y desenfocada.
 - **💎 New Experience Modal:** Un panel "About" completamente rediseñado con estética *glassmorphism*, animaciones sutiles y crédito de autoría profesional ("Created by Mariano").
 - **🎓 Onboarding System:** Nueva capa de ayuda interactiva para usuarios nuevos que guía sobre las funciones principales sin interrumpir el flujo de trabajo.
@@ -20,6 +21,7 @@ M3Flow es una plataforma de escritura de alto rendimiento diseñada para la clar
 | :--- | :--- |
 | **Local-First Architecture** | Privacidad total. SQLite local con rendimiento de grado empresarial. |
 | **Mermaid & Markdown** | Soporte completo para diagramas de flujo, diagramas de secuencia y resaltado de sintaxis `hljs`. |
+| **Inteligencia Artificial** | Botón mágico "Sparkles/AI". Escribe instrucciones libres y M3Flow adaptará tu nota usando OpenAI, Ollama o el que elijas. |
 | **Editor Modeless** | Elige entre edición estándar, **VIM** o **Emacs** desde la configuración rápida. |
 | **Temas Dinámicos** | Soporte para temas oscuros, claros y un modo **Custom** donde puedes definir tu propia paleta. |
 | **Exportación PRO** | Genera archivos `.md` limpios o documentos `.pdf` profesionales con un solo clic. |
@@ -63,7 +65,34 @@ npm run build
 ## ⌨️ Comandos Clave
 
 - `Ctrl + P`: Abrir buscador global de notas.
+- `Ctrl + N`: Crear nueva nota.
+- `Ctrl + B`: Mostrar / Ocultar panel lateral (Sidebar).
 - `B / I / S / </> / A`: Atajos visuales de formato en el toolbar del editor.
+
+---
+
+## 🤖 Guía Práctica de Inteligencia Artificial
+
+M3Flow te ofrece total libertad para dictar qué debe hacer la IA con tu documento. Solo presiona el botón "Sparkles" (Magia) y dale una orden. 
+
+### Configuración (API Keys)
+Ingresa al ícono de Configuración del Editor ➔ **AI Assistant Config**. Podrás elegir el proveedor deseado:
+- Para modelos locales (*Ollama*, *LM Studio*) solo necesitas especificar el puerto local (`http://localhost:11434` o `1234`). La privacidad es 100% garantizada.
+- Para servicios en la nube (*OpenAI GPT*, *Claude*, *Gemini*) debes ingresar tu **API Key**, la cual quedará guardada de forma local y encriptada.
+
+### Ejemplos Ingeniosos de Prompts
+
+> *"Pule este código y agrega comentarios explicativos al estilo JSDoc."*
+
+> *"Soy disléxico. Por favor corrige todos los posibles errores ortográficos, pero no cambies ni mi tono ni mis expresiones."*
+
+> *"Resume estas notas de la reunión en 3 viñetas principales y crea una lista de tareas (TODO) con los responsables mencionados."*
+
+> *"Toma este documento crudo y transórmalo en un Soneto Shakesperiano."*
+
+> *"Actúa como un CTO severo. 'Roastea' mis decisiones de diseño técnico en esta nota y dime dónde mi lógica es débil."*
+
+---
 
 ## ⌨️ Atajos de Teclado y Comandos
 

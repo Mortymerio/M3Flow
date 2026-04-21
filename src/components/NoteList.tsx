@@ -3,7 +3,7 @@ import { useStore } from '../store';
 import { THEMES } from '../themes';
 import { Edit3, Search, Clock, SortDesc, Trash2 } from 'lucide-react';
 
-const NoteItem = memo(({ note, isActive, onClick, themeStyle, themeName, allTags, allNoteTags }: any) => {
+const NoteItem = memo(({ note, isActive, onSelect, themeStyle, themeName, allTags, allNoteTags }: any) => {
   const getTimeAgo = (ts: number) => {
     const min = Math.floor((Date.now() - ts) / 60000);
     if (min < 60) return `${min || 1}m`;
@@ -13,12 +13,16 @@ const NoteItem = memo(({ note, isActive, onClick, themeStyle, themeName, allTags
   };
 
   const snippet = note.body ? note.body.replace(/[#*`_>\-]/g, '').slice(0, 100).trim() : 'No content';
-  const noteTagIds = allNoteTags.filter((nt: any) => nt.noteId === note.id).map((nt: any) => nt.tagId);
-  const myTags = allTags.filter((t: any) => noteTagIds.includes(t.id));
+  
+  // Memoize tags for this note to prevent unnecessary recalculations
+  const myTags = useMemo(() => {
+    const noteTagIds = allNoteTags.filter((nt: any) => nt.noteId === note.id).map((nt: any) => nt.tagId);
+    return allTags.filter((t: any) => noteTagIds.includes(t.id));
+  }, [note.id, allTags, allNoteTags]);
 
   return (
     <div 
-      onClick={onClick}
+      onClick={() => onSelect(note.id)}
       draggable
       onDragStart={(e) => e.dataTransfer.setData('noteId', note.id)}
       className={`relative px-4 py-4 cursor-pointer border-b transition-all duration-200 group
@@ -196,7 +200,7 @@ const NoteList = () => {
               key={note.id}
               note={note}
               isActive={note.id === activeNoteId}
-              onClick={() => setActiveNote(note.id)}
+              onSelect={setActiveNote}
               themeStyle={themeStyle}
               themeName={themeName}
               allTags={tags}

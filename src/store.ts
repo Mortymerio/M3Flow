@@ -60,6 +60,18 @@ interface AppState {
   showHelpOverlay: boolean;
   showAboutModal: boolean;
   
+  // AI Config
+  openAiKey: string;
+  geminiKey: string;
+  claudeKey: string;
+  githubToken: string;
+  azureUrl: string;
+  azureKey: string;
+  ollamaUrl: string;
+  ollamaModel: string;
+  lmStudioUrl: string;
+  activeAiProvider: 'ollama' | 'openai' | 'gemini' | 'claude' | 'lmstudio' | 'github' | 'azure';
+  
   // Acciones
   setSearchQuery: (query: string) => void;
   setSortOrder: (order: 'default' | 'alphabetical') => void;
@@ -74,6 +86,11 @@ interface AppState {
   setEditorFontSize: (size: number) => void;
   setShowHelpOverlay: (show: boolean) => void;
   setShowAboutModal: (show: boolean) => void;
+  
+  // AI Acciones
+  setAiConfig: (key: string, value: string) => void;
+  setActiveAiProvider: (provider: 'ollama' | 'openai' | 'gemini' | 'claude' | 'lmstudio' | 'github' | 'azure') => void;
+
   loadInitialData: () => Promise<void>;
   saveNote: (id: string, title: string, body: string) => Promise<void>;
   createNote: () => void;
@@ -113,6 +130,18 @@ export const useStore = create<AppState>((set, get) => ({
   showHelpOverlay: localStorage.getItem('hasSeenHelp') !== 'true',
   showAboutModal: false,
 
+  // AI Defaults
+  openAiKey: localStorage.getItem('openAiKey') || '',
+  geminiKey: localStorage.getItem('geminiKey') || '',
+  claudeKey: localStorage.getItem('claudeKey') || '',
+  githubToken: localStorage.getItem('githubToken') || '',
+  azureUrl: localStorage.getItem('azureUrl') || '',
+  azureKey: localStorage.getItem('azureKey') || '',
+  ollamaUrl: localStorage.getItem('ollamaUrl') || 'http://localhost:11434',
+  ollamaModel: localStorage.getItem('ollamaModel') || 'llama3',
+  lmStudioUrl: localStorage.getItem('lmStudioUrl') || 'http://localhost:1234',
+  activeAiProvider: (localStorage.getItem('activeAiProvider') as any) || 'ollama',
+
   setSearchQuery: (query) => set({ searchQuery: query }),
   setSortOrder: (order) => set({ sortOrder: order }),
   setActiveNotebook: (id) => set({ activeNotebookId: id, activeStatusId: null, activeTagId: null, activeNoteId: null }),
@@ -143,6 +172,15 @@ export const useStore = create<AppState>((set, get) => ({
     set({ showHelpOverlay: show });
   },
   setShowAboutModal: (show) => set({ showAboutModal: show }),
+
+  setAiConfig: (key, value) => {
+    localStorage.setItem(key, value);
+    set({ [key]: value } as any);
+  },
+  setActiveAiProvider: (provider) => {
+    localStorage.setItem('activeAiProvider', provider);
+    set({ activeAiProvider: provider });
+  },
 
   loadInitialData: async () => {
     try {
