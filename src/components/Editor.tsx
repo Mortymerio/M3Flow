@@ -10,7 +10,8 @@ import { emacs } from '@replit/codemirror-emacs';
 import { languages } from '@codemirror/language-data';
 import { useStore } from '../store';
 import { THEMES } from '../themes';
-import { Download, FileText, Layout, Eye, PenTool, Book, Settings2, Plus, ChevronDown, Trash2, Search, Check, Columns, LayoutList, Bell, Calendar, Sparkles, Loader2 } from 'lucide-react';
+import { Download, FileText, Layout, Eye, PenTool, Book, Settings2, Plus, ChevronDown, Trash2, Search, Check, Columns, LayoutList, Bell, Calendar, Sparkles, Loader2, Cpu } from 'lucide-react';
+import { initWebLlm, getEngine } from '../lib/webllm';
 
 const mdParser = new MarkdownIt({
   html: true,
@@ -79,6 +80,10 @@ const Editor = () => {
   const lmStudioUrl = useStore(state => state.lmStudioUrl);
   const setAiConfig = useStore(state => state.setAiConfig);
   const setActiveAiProvider = useStore(state => state.setActiveAiProvider);
+  
+  const isWebLlmLoaded = useStore(state => state.isWebLlmLoaded);
+  const webLlmProgress = useStore(state => state.webLlmProgress);
+  const webLlmStatusText = useStore(state => state.webLlmStatusText);
 
   const tags = useStore(state => state.tags);
   const noteTags = useStore(state => state.noteTags);
@@ -97,7 +102,17 @@ const Editor = () => {
     let resultText = '';
 
     try {
-      if (activeAiProvider === 'ollama') {
+      if (activeAiProvider === 'webllm') {
+        const engine = getEngine();
+        if (!engine) throw new Error("WebLLM Engine is not loaded.");
+        const reply = await engine.chat.completions.create({
+          messages: [
+            { role: "system", content: "You are a markdown editor assistant." },
+            { role: "user", content: `Instruction: ${aiPrompt}\n\nDocument:\n${content}\n\nOutput only the resulting markdown.` }
+          ]
+        });
+        resultText = reply.choices[0]?.message.content || '';
+      } else if (activeAiProvider === 'ollama') {
         const res = await fetch(`${ollamaUrl}/api/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -671,26 +686,54 @@ const Editor = () => {
                          <Settings2 size={12} />
                        </button>
                      </div>
-                     <textarea
-                       ref={(el) => { if (el) setTimeout(() => el.focus(), 50); }}
-                       className={`w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs outline-none focus:border-blue-500 transition-colors mb-2 resize-none h-16 shadow-inner`}
-                       placeholder="e.g. Translate to Spanish, fix grammar, make it sound professional..."
-                       value={aiPrompt}
-                       onChange={(e) => setAiPrompt(e.target.value)}
-                       onKeyDown={(e) => {
-                         if (e.key === 'Enter' && !e.shiftKey) {
-                           e.preventDefault();
-                           handleAiAction();
-                         }
-                       }}
-                     />
-                     <button
-                       onClick={handleAiAction}
-                       disabled={isAiLoading || !aiPrompt.trim()}
-                       className="w-full py-1.5 rounded-lg bg-blue-500 text-white text-[10px] font-bold hover:bg-blue-600 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
-                     >
-                       {isAiLoading ? <><Loader2 size={12} className="animate-spin" /> GENERATING...</> : 'MAGIC'}
-                     </button>
+                      
+                      {activeAiProvider === 'webllm' && !isWebLlmLoaded ? (
+                        <div className="flex flex-col gap-3 py-2">
+                          <div className="text-[10px] opacity-70 text-center px-2">
+                            To use the Embedded AI, you must download the Qwen2.5 (400MB) offline model to your browser cache. This happens only once.
+                          </div>
+                          
+                          {webLlmStatusText ? (
+                            <div className="flex flex-col gap-1 items-center">
+                              <span className="text-[9px] text-blue-400 font-bold tracking-wider">{webLlmProgress}%</span>
+                              <div className="w-full bg-black/40 h-1.5 rounded-full overflow-hidden border border-white/5">
+                                <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${webLlmProgress}%` }}></div>
+                              </div>
+                              <span className="text-[8px] opacity-50 mt-1">{webLlmStatusText}</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); initWebLlm(); }}
+                              className="w-full py-2 rounded-lg bg-indigo-600/80 text-white text-[10px] font-bold hover:bg-indigo-500 transition-colors shadow-lg flex justify-center items-center gap-2 border border-indigo-400/30"
+                            >
+                              <Cpu size={12} /> DOWNLOAD MODEL
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          <textarea
+                            ref={(el) => { if (el) setTimeout(() => el.focus(), 50); }}
+                            className={`w-full bg-black/20 border border-white/10 rounded-lg p-2 text-xs outline-none focus:border-blue-500 transition-colors mb-2 resize-none h-16 shadow-inner`}
+                            placeholder="e.g. Translate to Spanish, fix grammar, make it sound professional..."
+                            value={aiPrompt}
+                            onChange={(e) => setAiPrompt(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleAiAction();
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={handleAiAction}
+                            disabled={isAiLoading || !aiPrompt.trim()}
+                            className="w-full py-1.5 rounded-lg bg-blue-500 text-white text-[10px] font-bold hover:bg-blue-600 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                          >
+                            {isAiLoading ? <><Loader2 size={12} className="animate-spin" /> GENERATING...</> : 'MAGIC'}
+                          </button>
+                        </>
+                      )}
                    </div>
                  )}
 
@@ -710,7 +753,9 @@ const Editor = () => {
                           onChange={(e) => setActiveAiProvider(e.target.value as any)}
                           className="bg-black/20 w-full rounded p-1.5 text-[11px] outline-none border border-white/5"
                         >
+                          <option value="webllm">M3Flow Embedded Beta</option>
                           <option value="ollama">Ollama (Local)</option>
+
                           <option value="lmstudio">LM Studio (Local)</option>
                           <option value="openai">OpenAI (GPT)</option>
                           <option value="azure">MS Copilot (Azure OpenAI)</option>

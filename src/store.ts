@@ -70,7 +70,12 @@ interface AppState {
   ollamaUrl: string;
   ollamaModel: string;
   lmStudioUrl: string;
-  activeAiProvider: 'ollama' | 'openai' | 'gemini' | 'claude' | 'lmstudio' | 'github' | 'azure';
+  activeAiProvider: 'ollama' | 'openai' | 'gemini' | 'claude' | 'lmstudio' | 'github' | 'azure' | 'webllm';
+  
+  // WebLLM State
+  isWebLlmLoaded: boolean;
+  webLlmProgress: number;
+  webLlmStatusText: string;
   
   // Acciones
   setSearchQuery: (query: string) => void;
@@ -89,7 +94,8 @@ interface AppState {
   
   // AI Acciones
   setAiConfig: (key: string, value: string) => void;
-  setActiveAiProvider: (provider: 'ollama' | 'openai' | 'gemini' | 'claude' | 'lmstudio' | 'github' | 'azure') => void;
+  setActiveAiProvider: (provider: 'ollama' | 'openai' | 'gemini' | 'claude' | 'lmstudio' | 'github' | 'azure' | 'webllm') => void;
+  setWebLlmState: (state: Partial<{isWebLlmLoaded: boolean, webLlmProgress: number, webLlmStatusText: string}>) => void;
 
   loadInitialData: () => Promise<void>;
   saveNote: (id: string, title: string, body: string) => Promise<void>;
@@ -141,6 +147,10 @@ export const useStore = create<AppState>((set, get) => ({
   ollamaModel: localStorage.getItem('ollamaModel') || 'llama3',
   lmStudioUrl: localStorage.getItem('lmStudioUrl') || 'http://localhost:1234',
   activeAiProvider: (localStorage.getItem('activeAiProvider') as any) || 'ollama',
+  
+  isWebLlmLoaded: false,
+  webLlmProgress: 0,
+  webLlmStatusText: '',
 
   setSearchQuery: (query) => set({ searchQuery: query }),
   setSortOrder: (order) => set({ sortOrder: order }),
@@ -174,12 +184,15 @@ export const useStore = create<AppState>((set, get) => ({
   setShowAboutModal: (show) => set({ showAboutModal: show }),
 
   setAiConfig: (key, value) => {
-    localStorage.setItem(key, value);
     set({ [key]: value } as any);
+    localStorage.setItem(key, value);
   },
   setActiveAiProvider: (provider) => {
-    localStorage.setItem('activeAiProvider', provider);
     set({ activeAiProvider: provider });
+    localStorage.setItem('activeAiProvider', provider);
+  },
+  setWebLlmState: (newState) => {
+    set((state) => ({ ...state, ...newState }));
   },
 
   loadInitialData: async () => {
