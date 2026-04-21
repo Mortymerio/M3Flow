@@ -252,4 +252,15 @@ const databaseAPI = {
   }
 };
 
-module.exports = { initDB, databaseAPI };
+const closeDB = () => {
+  if (db) {
+    try {
+      db.close();
+      console.log('Γ£ª Database connection closed.');
+    } catch (err) {
+      console.error('Error closing database:', err);
+    }
+  }
+};
+
+module.exports = { initDB, databaseAPI, closeDB };

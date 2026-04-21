@@ -11,7 +11,7 @@ process.env.VITE_PUBLIC = process.env.VITE_DEV_SERVER_URL
   : process.env.DIST;
 
 // Importar la base de datos usando require
-const { initDB, databaseAPI } = require('./database.ts');
+const { initDB, databaseAPI, closeDB } = require('./database.ts');
 
 // Inicializa las tablas SQLite al cargar el main process
 initDB();
@@ -188,3 +188,12 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
 })
+
+// Asegurar cierre limpio de recursos
+app.on('will-quit', () => {
+  closeDB();
+});
+
+app.on('quit', () => {
+  process.exit(0);
+});
