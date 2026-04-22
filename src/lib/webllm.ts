@@ -12,7 +12,7 @@ export async function initWebLlm() {
   if (globalEngine) return globalEngine;
   if (isInitializing) return null; // Avoid racing conditions
   
-  if (!navigator.gpu) {
+  if (!(navigator as any).gpu) {
     console.error("WebGPU is not supported in this environment");
     useStore.getState().setWebLlmState({ 
         webLlmStatusText: "Error: WebGPU Not Supported on this machine.",
