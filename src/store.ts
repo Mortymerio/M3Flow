@@ -54,6 +54,7 @@ interface AppState {
     listHeader: string;
     editorBg: string;
     editorHeader: string;
+    previewBg: string;
   };
   isCustomMenuOpen: boolean;
   editorFontSize: number;
@@ -70,6 +71,7 @@ interface AppState {
   ollamaUrl: string;
   ollamaModel: string;
   lmStudioUrl: string;
+  webLlmModelUrl: string;
   activeAiProvider: 'ollama' | 'openai' | 'gemini' | 'claude' | 'lmstudio' | 'github' | 'azure' | 'webllm';
   
   // WebLLM State
@@ -130,7 +132,7 @@ export const useStore = create<AppState>((set, get) => ({
   sortOrder: 'default',
   editorMode: (localStorage.getItem('editorMode') as any) || 'normal',
   theme: (localStorage.getItem('theme') as any) || 'cyber-ronin',
-  customColors: JSON.parse(localStorage.getItem('customColors') || '{"sidebarBg":"#1e2329","sidebarHeader":"#171b1f","listBg":"#252b33","listHeader":"#1e2329","editorBg":"#15191e","editorHeader":"#1e2329"}'),
+  customColors: JSON.parse(localStorage.getItem('customColors') || '{"sidebarBg":"#1e2329","sidebarHeader":"#171b1f","listBg":"#252b33","listHeader":"#1e2329","editorBg":"#15191e","editorHeader":"#1e2329","previewBg":"#1a1e24"}'),
   isCustomMenuOpen: false,
   editorFontSize: parseInt(localStorage.getItem('fontSize') || '14') || 14,
   showHelpOverlay: localStorage.getItem('hasSeenHelp') !== 'true',
@@ -146,6 +148,7 @@ export const useStore = create<AppState>((set, get) => ({
   ollamaUrl: localStorage.getItem('ollamaUrl') || 'http://localhost:11434',
   ollamaModel: localStorage.getItem('ollamaModel') || 'llama3',
   lmStudioUrl: localStorage.getItem('lmStudioUrl') || 'http://localhost:1234',
+  webLlmModelUrl: localStorage.getItem('webLlmModelUrl') || '',
   activeAiProvider: (localStorage.getItem('activeAiProvider') as any) || 'ollama',
   
   isWebLlmLoaded: false,
@@ -279,7 +282,7 @@ export const useStore = create<AppState>((set, get) => ({
       if ((window as any).dbAPI.moveNotebook) {
         await (window as any).dbAPI.moveNotebook(notebookId, newParentId);
       }
-    } catch(e) {}
+    } catch(e) { console.error('[store] moveNotebook error:', e); }
   },
   moveNote: async (noteId, notebookId) => {
     set(state => ({
@@ -287,7 +290,7 @@ export const useStore = create<AppState>((set, get) => ({
     }));
     try {
       if ((window as any).dbAPI.moveNote) await (window as any).dbAPI.moveNote(noteId, notebookId);
-    } catch(e) {}
+    } catch(e) { console.error('[store] moveNote error:', e); }
   },
   updateNoteStatus: async (noteId, status) => {
     set(state => ({
@@ -295,7 +298,7 @@ export const useStore = create<AppState>((set, get) => ({
     }));
     try {
       if ((window as any).dbAPI.updateNoteStatus) await (window as any).dbAPI.updateNoteStatus(noteId, status);
-    } catch(e) {}
+    } catch(e) { console.error('[store] updateNoteStatus error:', e); }
   },
   updateNoteReminder: async (noteId, reminderAt) => {
     set(state => ({
@@ -303,7 +306,7 @@ export const useStore = create<AppState>((set, get) => ({
     }));
     try {
       if ((window as any).dbAPI.updateNoteReminder) await (window as any).dbAPI.updateNoteReminder(noteId, reminderAt);
-    } catch(e) {}
+    } catch(e) { console.error('[store] updateNoteReminder error:', e); }
   },
   createTag: async (name, color) => {
     const id = 'tag-' + Date.now();
@@ -311,14 +314,14 @@ export const useStore = create<AppState>((set, get) => ({
     set(state => ({ tags: [...state.tags, newTag] }));
     try {
       if ((window as any).dbAPI.createTag) await (window as any).dbAPI.createTag(newTag);
-    } catch(e) {}
+    } catch(e) { console.error('[store] createTag error:', e); }
     return id;
   },
   updateTag: async (id, name, color) => {
     set(state => ({ tags: state.tags.map(t => t.id === id ? { ...t, name, color } : t) }));
     try {
       if ((window as any).dbAPI.updateTag) await (window as any).dbAPI.updateTag({ id, name, color });
-    } catch(e) {}
+    } catch(e) { console.error('[store] updateTag error:', e); }
   },
   deleteTag: async (id) => {
     set(state => ({ 
@@ -327,7 +330,7 @@ export const useStore = create<AppState>((set, get) => ({
     }));
     try {
       if ((window as any).dbAPI.deleteTag) await (window as any).dbAPI.deleteTag(id);
-    } catch(e) {}
+    } catch(e) { console.error('[store] deleteTag error:', e); }
   },
   toggleNoteTag: async (noteId, tagId) => {
     set(state => {
@@ -339,7 +342,7 @@ export const useStore = create<AppState>((set, get) => ({
     });
     try {
       if ((window as any).dbAPI.toggleNoteTag) await (window as any).dbAPI.toggleNoteTag(noteId, tagId);
-    } catch(e) {}
+    } catch(e) { console.error('[store] toggleNoteTag error:', e); }
   },
   createNotebook: async (name, parentId) => {
     const id = 'nb-' + Date.now();
@@ -348,7 +351,7 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const dbAPI = (window as any).dbAPI;
       if (dbAPI && dbAPI.saveNotebook) await dbAPI.saveNotebook(newNB);
-    } catch(e) {}
+    } catch(e) { console.error('[store] createNotebook error:', e); }
   },
   deleteNote: async (id) => {
     if (!id) return;
@@ -359,7 +362,7 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const dbAPI = (window as any).dbAPI;
       if (dbAPI && dbAPI.deleteNote) await dbAPI.deleteNote(id);
-    } catch(e) {}
+    } catch(e) { console.error('[store] deleteNote error:', e); }
   },
   deleteNotebook: async (id) => {
     set(state => ({ 
@@ -370,6 +373,6 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const dbAPI = (window as any).dbAPI;
       if (dbAPI && dbAPI.deleteNotebook) await dbAPI.deleteNotebook(id);
-    } catch(e) {}
+    } catch(e) { console.error('[store] deleteNotebook error:', e); }
   }
 }));

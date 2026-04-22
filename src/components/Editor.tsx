@@ -1,16 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { EditorView } from '@codemirror/view';
 import MarkdownIt from 'markdown-it';
 import mermaid from 'mermaid';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-dark.css'; // Global fallback highlight
-import { vim } from '@replit/codemirror-vim';
+import { vim, getCM } from '@replit/codemirror-vim';
 import { emacs } from '@replit/codemirror-emacs';
 import { languages } from '@codemirror/language-data';
 import { useStore } from '../store';
 import { THEMES } from '../themes';
-import { Download, FileText, Layout, Eye, PenTool, Book, Settings2, Plus, ChevronDown, Trash2, Search, Check, Columns, LayoutList, Bell, Calendar, Sparkles, Loader2, Cpu } from 'lucide-react';
+import { Download, FileText, Layout, Eye, PenTool, Book, Settings2, Plus, ChevronDown, Trash2, Search, Check, Columns, LayoutList, Bell, Calendar, Sparkles, Loader2, Cpu, Globe } from 'lucide-react';
 import { initWebLlm, getEngine } from '../lib/webllm';
 
 const mdParser = new MarkdownIt({
@@ -65,6 +66,12 @@ const Editor = () => {
   const editorRef = useRef<any>(null);
   const [tempReminder, setTempReminder] = useState<number | null>(null);
 
+  // Status bar state
+  const [cursorLine, setCursorLine] = useState(1);
+  const [cursorCol, setCursorCol] = useState(1);
+  const [totalLines, setTotalLines] = useState(0);
+  const [vimMode, setVimMode] = useState('NORMAL');
+
   // AI State
   const [aiPrompt, setAiPrompt] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -95,6 +102,7 @@ const Editor = () => {
   const deleteTag = useStore(state => state.deleteTag);
   const setCustomColor = useStore(state => state.setCustomColor);
   const customColors = useStore(state => state.customColors);
+  const webLlmModelUrl = useStore(state => state.webLlmModelUrl);
 
   const handleAiAction = async () => {
     if (!aiPrompt.trim() || isAiLoading) return;
@@ -169,6 +177,27 @@ const Editor = () => {
         });
         const data = await res.json();
         resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      } else if (activeAiProvider === 'claude') {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': claudeKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4096,
+            system: 'You are a helpful markdown editor assistant. Obey the user\'s instructions over the provided document. Output only the requested modified content in raw markdown.',
+            messages: [
+              { role: 'user', content: `Instruction: ${aiPrompt}\n\nDocument:\n${content}` }
+            ]
+          })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message || 'Claude API Error');
+        resultText = data.content?.[0]?.text;
       }
 
       if (resultText) {
@@ -185,9 +214,39 @@ const Editor = () => {
     }
   };
 
-  const editorExtensions: any[] = [markdown({ base: markdownLanguage, codeLanguages: languages })];
+  // Cursor position tracking extension
+  const cursorTracker = useCallback(() => EditorView.updateListener.of((update) => {
+    if (update.selectionSet || update.docChanged) {
+      const pos = update.state.selection.main.head;
+      const line = update.state.doc.lineAt(pos);
+      setCursorLine(line.number);
+      setCursorCol(pos - line.from + 1);
+      setTotalLines(update.state.doc.lines);
+      
+      // Track vim mode
+      if (editorMode === 'vim') {
+        try {
+          const cm = getCM(update.view);
+          if (cm?.state?.vim) {
+            const vs = cm.state.vim;
+            if (vs.insertMode) setVimMode('INSERT');
+            else if (vs.visualMode) {
+              if (vs.visualLine) setVimMode('V-LINE');
+              else if (vs.visualBlock) setVimMode('V-BLOCK');
+              else setVimMode('VISUAL');
+            } else setVimMode('NORMAL');
+          }
+        } catch { /* getCM may fail during init */ }
+      }
+    }
+  }), [editorMode]);
+
+  // Build extensions: vim/emacs MUST come before markdown for keymap precedence
+  const editorExtensions: any[] = [];
   if (editorMode === 'vim') editorExtensions.push(vim());
   if (editorMode === 'emacs') editorExtensions.push(emacs());
+  editorExtensions.push(markdown({ base: markdownLanguage, codeLanguages: languages }));
+  editorExtensions.push(cursorTracker());
 
   useEffect(() => {
     if (activeNoteId) {
@@ -339,11 +398,14 @@ const Editor = () => {
   }
 
   return (
-    <div className={`flex-[2_2_0%] flex flex-col h-full font-sans relative shadow-[-5px_0_15px_rgba(0,0,0,0.02)] ${themeStyle.editorBg} ${themeStyle.editorText}`} onClick={() => setDropdownOpen('none')}>
+    <div 
+      className={`flex-[2_2_0%] flex flex-col h-full font-sans relative shadow-[-5px_0_15px_rgba(0,0,0,0.02)] ${themeStyle.editorBg} ${themeStyle.editorText}`}
+      onClick={() => setDropdownOpen('none')}
+    >
       {/* Top Header / minimal draggable area */}
       <div 
         id="editor-header"
-        className={`h-12 flex items-center justify-between no-drag text-[13px] border-b relative z-20 transition-all duration-300 ${themeStyle.editorHeader} ${themeStyle.editorBorder} px-4 print:hidden`} 
+        className={`h-12 flex items-center justify-between no-drag text-[13px] border-b relative z-[100] transition-all duration-300 ${themeStyle.editorHeader} ${themeStyle.editorBorder} px-4 print:hidden`} 
         style={{ WebkitAppRegion: 'drag' } as any}
       >
         {/* Left: Metadata Bar Restored */}
@@ -364,7 +426,7 @@ const Editor = () => {
               {dropdownOpen === 'notebook' && (
                 <div 
                   onClick={(e) => e.stopPropagation()}
-                  className={`absolute top-9 left-0 w-56 rounded-xl shadow-2xl border overflow-hidden z-50 ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder} animate-in fade-in slide-in-from-top-2 duration-200`}
+                  className={`absolute top-9 left-0 w-56 rounded-xl shadow-2xl border overflow-hidden z-[9999] ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder} animate-in fade-in slide-in-from-top-2 duration-200`}
                 >
                   <div className={`px-3 py-2 text-[10px] uppercase font-bold border-b opacity-60 ${themeStyle.editorBorder}`}>Move to Notebook</div>
                   <div className="max-h-60 overflow-y-auto py-1">
@@ -403,7 +465,7 @@ const Editor = () => {
               {dropdownOpen === 'status' && (activeNoteId) && (
                 <div 
                   onClick={(e) => e.stopPropagation()}
-                  className={`absolute top-9 left-0 w-48 rounded-xl shadow-2xl border overflow-hidden z-50 ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder} animate-in fade-in slide-in-from-top-2 duration-200`}
+                  className={`absolute top-9 left-0 w-48 rounded-xl shadow-2xl border overflow-hidden z-[9999] ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder} animate-in fade-in slide-in-from-top-2 duration-200`}
                 >
                   {['active', 'on-hold', 'completed', 'dropped'].map(s => (
                     <div 
@@ -447,7 +509,7 @@ const Editor = () => {
               {dropdownOpen === 'tags' && (
                 <div 
                   onClick={(e) => e.stopPropagation()}
-                  className={`absolute top-9 left-0 w-64 rounded-xl shadow-2xl border overflow-hidden z-50 ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder} animate-in fade-in slide-in-from-top-2 duration-200`}
+                  className={`absolute top-9 left-0 w-64 rounded-xl shadow-2xl border overflow-hidden z-[9999] ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder} animate-in fade-in slide-in-from-top-2 duration-200`}
                 >
                   <div className={`px-4 py-3 border-b flex items-center gap-3 bg-white/5 backdrop-blur-md ${themeStyle.editorBorder}`}>
                     <div className="bg-white/10 p-1.5 rounded-lg">
@@ -563,7 +625,7 @@ const Editor = () => {
               {dropdownOpen === 'reminder' && (
                 <div 
                   onClick={(e) => e.stopPropagation()}
-                  className={`absolute top-9 left-0 w-64 p-4 rounded-xl shadow-2xl border z-50 ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder} animate-in fade-in slide-in-from-top-2 duration-200`}
+                  className={`absolute top-9 left-0 w-64 p-4 rounded-xl shadow-2xl border z-[9999] ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder} animate-in fade-in slide-in-from-top-2 duration-200`}
                 >
                   <div className="flex items-center gap-2 mb-3">
                     <Calendar size={14} className="text-blue-500" />
@@ -610,7 +672,7 @@ const Editor = () => {
           {dropdownOpen === 'settings' && (
             <div 
               onClick={(e) => e.stopPropagation()}
-              className={`absolute top-8 right-0 w-56 rounded-md shadow-2xl border overflow-hidden z-50 ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder}`}
+              className={`absolute top-8 right-0 w-56 rounded-md shadow-2xl border overflow-hidden z-[9999] ${themeStyle.dropdownBg} ${themeStyle.dropdownText} ${themeStyle.editorBorder}`}
             >
               <div className={`px-3 py-2 text-[10px] uppercase font-bold border-b opacity-60 ${themeStyle.editorBorder}`}>Format Settings</div>
               <div className="p-3 flex flex-col gap-3">
@@ -625,6 +687,7 @@ const Editor = () => {
                         { label: 'List Header', key: 'listHeader' },
                         { label: 'Editor Bg', key: 'editorBg' },
                         { label: 'ED Header', key: 'editorHeader' },
+                        { label: 'Preview BG', key: 'previewBg' },
                       ].map((item: any) => (
                         <div key={item.key} className="flex flex-col gap-0.5">
                           <span className="text-[9px] opacity-40 uppercase font-black">{item.label}</span>
@@ -653,7 +716,7 @@ const Editor = () => {
       <div className="flex-1 flex flex-col overflow-hidden no-drag" style={{ WebkitAppRegion: 'no-drag' } as any}>
         
         {/* Formatting Toolbar */}
-        <div id="format-toolbar" className={`flex items-center justify-between px-4 py-2 border-b ${themeStyle.editorBorder} opacity-80 print:hidden relative z-20`}>
+        <div id="format-toolbar" className={`flex items-center justify-between px-4 py-2 border-b ${themeStyle.editorBorder} opacity-80 print:hidden relative z-[90]`}>
            <div className="flex gap-4">
               <span onClick={() => applyFormat('bold')} className="font-bold cursor-pointer hover:opacity-70 px-1">B</span>
               <span onClick={() => applyFormat('italic')} className="italic cursor-pointer hover:opacity-70 px-1">I</span>
@@ -689,25 +752,41 @@ const Editor = () => {
                       
                       {activeAiProvider === 'webllm' && !isWebLlmLoaded ? (
                         <div className="flex flex-col gap-3 py-2">
-                          <div className="text-[10px] opacity-70 text-center px-2">
-                            To use the Embedded AI, you must download the Qwen2.5 (400MB) offline model to your browser cache. This happens only once.
-                          </div>
-                          
-                          {webLlmStatusText ? (
-                            <div className="flex flex-col gap-1 items-center">
-                              <span className="text-[9px] text-blue-400 font-bold tracking-wider">{webLlmProgress}%</span>
-                              <div className="w-full bg-black/40 h-1.5 rounded-full overflow-hidden border border-white/5">
-                                <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${webLlmProgress}%` }}></div>
-                              </div>
-                              <span className="text-[8px] opacity-50 mt-1">{webLlmStatusText}</span>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); initWebLlm(); }}
-                              className="w-full py-2 rounded-lg bg-indigo-600/80 text-white text-[10px] font-bold hover:bg-indigo-500 transition-colors shadow-lg flex justify-center items-center gap-2 border border-indigo-400/30"
-                            >
-                              <Cpu size={12} /> DOWNLOAD MODEL
-                            </button>
+                           <div className="text-[10px] opacity-70 text-center px-2">
+                             To use the Embedded AI, you must download the Qwen2.5 (400MB) offline model to your browser cache. This happens only once.
+                           </div>
+                           
+                           <div className="mt-2">
+                             <div className="flex items-center gap-1.5 mb-1">
+                               <Globe size={10} className="text-amber-400" />
+                               <span className="text-[9px] font-bold opacity-50 uppercase">Model Mirror URL (optional)</span>
+                             </div>
+                             <input
+                               type="text"
+                               placeholder="https://raw.githubusercontent.com/user/repo/..."
+                               value={webLlmModelUrl}
+                               onChange={(e) => setAiConfig('webLlmModelUrl', e.target.value)}
+                               onClick={(e) => e.stopPropagation()}
+                               className="w-full bg-black/20 border border-white/10 rounded-lg p-1.5 text-[9px] outline-none focus:border-amber-500 transition-colors mb-1"
+                             />
+                             <span className="text-[8px] opacity-30">Use if HuggingFace is blocked (e.g. GitHub raw)</span>
+                           </div>
+
+                           {webLlmStatusText ? (
+                             <div className="flex flex-col gap-1 items-center">
+                               <span className="text-[9px] text-blue-400 font-bold tracking-wider">{webLlmProgress}%</span>
+                               <div className="w-full bg-black/40 h-1.5 rounded-full overflow-hidden border border-white/5">
+                                 <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${webLlmProgress}%` }}></div>
+                               </div>
+                               <span className="text-[8px] opacity-50 mt-1">{webLlmStatusText}</span>
+                             </div>
+                           ) : (
+                             <button
+                               onClick={(e) => { e.stopPropagation(); initWebLlm(); }}
+                               className="w-full py-2 rounded-lg bg-indigo-600/80 text-white text-[10px] font-bold hover:bg-indigo-500 transition-colors shadow-lg flex justify-center items-center gap-2 border border-indigo-400/30"
+                             >
+                               <Cpu size={12} /> DOWNLOAD MODEL
+                             </button>
                           )}
                         </div>
                       ) : (
@@ -828,7 +907,7 @@ const Editor = () => {
            </div>
         </div>
 
-        <div id="editor-content-area" className="flex-1 flex overflow-hidden relative">
+        <div id="editor-content-area" className={`flex-1 flex overflow-hidden relative ${dropdownOpen !== 'none' ? 'pointer-events-none' : ''}`}>
           {/* CodeMirror */}
           {(viewMode === 'split' || viewMode === 'edit') && (
             <div 
@@ -874,7 +953,7 @@ const Editor = () => {
             <div 
               id="preview-area-wrapper"
               key={`${activeNoteId}-${viewMode}-${editorFontSize}-${themeName}`}
-              className={`h-full overflow-y-auto p-8 print:!bg-white print:!text-black`} 
+              className={`h-full overflow-y-auto p-8 print:!bg-white print:!text-black ${themeStyle.previewBg}`} 
               style={{ 
                 flex: viewMode === 'split' ? (1 - splitRatio) : 1,
                 fontSize: `${editorFontSize}px` 
@@ -882,16 +961,43 @@ const Editor = () => {
             >
               <div 
                 id="preview-area"
-                className={`${themeStyle.prose} max-w-3xl mx-auto block print:!text-black`}
+                className={`${themeStyle.prose} prose-custom-size max-w-3xl mx-auto block print:!text-black`}
                 dangerouslySetInnerHTML={{ __html: mdParser.render(content) }} 
               />
             </div>
           )}
         </div>
       </div>
+
+      {/* Status Bar — Vim/VS Code style */}
+      <div className={`status-bar h-6 flex items-center justify-between px-3 border-t ${themeStyle.editorBorder} bg-black/20 backdrop-blur-sm print:hidden`}>
+        <div className="flex items-center gap-3">
+          {/* Vim mode indicator (only in vim mode) */}
+          {editorMode === 'vim' && (
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-black tracking-wider ${
+              vimMode === 'INSERT' ? 'bg-emerald-500/20 text-emerald-400' :
+              vimMode === 'VISUAL' || vimMode === 'V-LINE' || vimMode === 'V-BLOCK' ? 'bg-purple-500/20 text-purple-400' :
+              'bg-blue-500/20 text-blue-400'
+            }`}>
+              -- {vimMode} --
+            </span>
+          )}
+          {/* Editor mode badge */}
+          <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest">
+            {editorMode === 'vim' ? 'VIM' : editorMode === 'emacs' ? 'EMACS' : 'NORMAL'}
+          </span>
+        </div>
+        <div className="flex items-center gap-4 opacity-60">
+          <span className="text-[10px]">Ln {cursorLine}, Col {cursorCol}</span>
+          <span className="text-[10px]">{totalLines} lines</span>
+          <span className="text-[10px]">{content.length} chars</span>
+          <span className="text-[10px] uppercase">UTF-8</span>
+          <span className="text-[10px] uppercase">Markdown</span>
+        </div>
+      </div>
       
       {/* Floating Export Box */}
-      <div className="absolute bottom-6 right-6 flex gap-2 z-10 print:hidden">
+      <div className="absolute bottom-10 right-6 flex gap-2 z-10 print:hidden">
           <button 
             className={`flex items-center gap-2 text-xs font-semibold shadow-lg hover:shadow-xl transition-all px-3 py-2 border rounded-full hover:-translate-y-0.5 ${themeStyle.editorBg} ${themeStyle.editorBorder} ${themeStyle.editorText}`}
             onClick={async () => {

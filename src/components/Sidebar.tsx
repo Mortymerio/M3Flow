@@ -310,6 +310,7 @@ const Sidebar = () => {
                     { label: 'List Head', key: 'listHeader' },
                     { label: 'Editor BG', key: 'editorBg' },
                     { label: 'Edit Head', key: 'editorHeader' },
+                    { label: 'Preview BG', key: 'previewBg' },
                   ].map((item: any) => (
                     <div key={item.key} className="flex flex-col gap-1">
                       <label className="text-[9px] font-black opacity-40 uppercase tracking-tighter">{item.label}</label>

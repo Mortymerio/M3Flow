@@ -5,13 +5,13 @@ M3Flow es una plataforma de escritura de alto rendimiento diseñada para la clar
 
 ---
 
-## 🔥 Novedades de esta Versión
+## 🔥 Novedades de esta Versión (Update 0.1.0)
 
-- **🤖 Multi-Provider AI Engine:** Integra inteligencia artificial directamente en tu editor. Conéctate libremente con Ollama (Local), LM Studio, OpenAI (GPT), Gemini o Claude, usando un prompt libre para modificar y mejorar tus notas.
-- **🔍 Command Palette (Ctrl+P):** Navegación instantánea. Busca en el contenido de todas tus notas y salta entre notebooks en milisegundos con una interfaz limpia y desenfocada.
-- **💎 New Experience Modal:** Un panel "About" completamente rediseñado con estética *glassmorphism*, animaciones sutiles y crédito de autoría profesional ("Created by Mariano").
-- **🎓 Onboarding System:** Nueva capa de ayuda interactiva para usuarios nuevos que guía sobre las funciones principales sin interrumpir el flujo de trabajo.
-- **🛠️ UI Hardening:** Sistema anti-overscroll y corrección de color reactiva. Los textos e iconos ahora cambian dinámicamente según el tema para garantizar legibilidad al 100%.
+- **🤖 WebLLM AI Mirror & Claude API:** La IA "Zero-Cost" incrustada ahora soporta descargas por repositorios Mirror (ej. GitHub) para esquivar restricciones de firewalls corporativos. Además, el panel soporta el provider oficial de Anthropic (Claude-Sonnet 3.5/4).
+- **📊 Status Bar Profesional:** Inspirada en Neovim y VS Code, la nueva barra de estado dinámica está anclada al pie del editor. Rastrea la línea, columna, tamaño del documento, y muestra etiquetas dinámicas semánticas interactuando de forma nativa con los modos de CodeMirror (VIM Visual, Insert y Normal).
+- **🎨 Sincronización Tema y Preview:** El slider de tamaño de fuente global ahora escala el entorno completo (Editor + Preview HTML). Los fondos de previsualización (Preview BG) fueron independizados, dando máximo control visual en modos Custom y oscuros.
+- **⚡ UI/UX Engine Hardening:** Reparados los Z-Index bugs conflictivos donde los Dropdowns (Status, Notebooks, Export) sufrían *click-through* transparentes sobre el panel de texto o bloqueaban áreas de código inferior.
+- **🛠️ Refactor Técnico:** Keymaps de Vim/Emacs cargan primero por default (evita superposición), los catches en el Store global ahora envían trazas nativas claras, y se simplificó `App.css` limpiando estilos huérfanos.
 
 ---
 

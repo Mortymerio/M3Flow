@@ -18,6 +18,7 @@ export const THEMES = {
     editorBorder: 'border-slate-200',
     dropdownBg: 'bg-white',
     dropdownText: 'text-slate-800',
+    previewBg: 'bg-white',
     prose: 'prose',
     codeTheme: 'light'
   },
@@ -40,6 +41,7 @@ export const THEMES = {
     editorBorder: 'border-slate-200',
     dropdownBg: 'bg-white',
     dropdownText: 'text-slate-800',
+    previewBg: 'bg-[#fafbfc]',
     prose: 'prose',
     codeTheme: 'light'
   },
@@ -62,6 +64,7 @@ export const THEMES = {
     editorBorder: 'border-[#3b4252]',
     dropdownBg: 'bg-[#3b4252]',
     dropdownText: 'text-[#eceff4]',
+    previewBg: 'bg-[#2e3440]',
     prose: 'prose prose-invert prose-p:text-[#e5e9f0] prose-h1:text-white',
     codeTheme: 'dark'
   },
@@ -84,6 +87,7 @@ export const THEMES = {
     editorBorder: 'border-[#252b33]',
     dropdownBg: 'bg-[#1e2329]',
     dropdownText: 'text-[#c9d1d9]',
+    previewBg: 'bg-[#1a1e24]',
     prose: 'prose prose-invert prose-p:text-[#8b9eb5] prose-h1:text-[#64ffda] prose-a:text-[#58a6ff]',
     codeTheme: 'dark'
   },
@@ -106,6 +110,7 @@ export const THEMES = {
     editorBorder: 'border-white/10',
     dropdownBg: 'bg-slate-800',
     dropdownText: 'text-white',
+    previewBg: 'bg-[var(--custom-preview-bg)]',
     prose: 'prose prose-invert',
     codeTheme: 'dark'
   }

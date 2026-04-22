@@ -37,9 +37,28 @@ export async function initWebLlm() {
         });
     };
 
+    // Check if user has set a custom model mirror URL (e.g. GitHub)
+    const customModelUrl = useStore.getState().webLlmModelUrl;
+    
+    let engineConfig: any = { initProgressCallback };
+    
+    if (customModelUrl && customModelUrl.trim()) {
+      // Override model source with user's custom URL (GitHub mirror, etc.)
+      engineConfig.appConfig = {
+        model_list: [
+          {
+            model: customModelUrl.trim(),
+            model_id: MODEL_ID,
+            model_lib:
+              "https://raw.githubusercontent.com/niceduckdev/web-llm-assets/main/wasm/Qwen2.5-0.5B-Instruct-q4f16_1-MLC/Qwen2.5-0.5B-Instruct-q4f16_1-MLC-webgpu.wasm",
+          },
+        ],
+      };
+    }
+
     globalEngine = await CreateMLCEngine(
       MODEL_ID,
-      { initProgressCallback: initProgressCallback }
+      engineConfig
     );
     
     useStore.getState().setWebLlmState({ 

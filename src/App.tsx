@@ -133,6 +133,7 @@ const App = () => {
           --custom-list-header: ${customColors.listHeader};
           --custom-editor-bg: ${customColors.editorBg};
           --custom-editor-header: ${customColors.editorHeader};
+          --custom-preview-bg: ${customColors.previewBg};
           
           --custom-sidebar-text: ${isLightColor(customColors.sidebarBg) ? '#1e293b' : '#cbd5e1'};
           --custom-list-text: ${isLightColor(customColors.listBg) ? '#1e293b' : '#cbd5e1'};
