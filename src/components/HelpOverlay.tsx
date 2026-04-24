@@ -1,5 +1,5 @@
 import { useStore } from '../store';
-import { X, Keyboard, MousePointer2, Command, CornerDownLeft, ArrowBigUp, Plus, Search, Sidebar as SidebarIcon, Save, Download, Sparkles } from 'lucide-react';
+import { MousePointer2, Sparkles } from 'lucide-react';
 
 const HelpItem = ({ title, description, position, arrowDirection }: any) => {
   const arrowStyles: any = {
