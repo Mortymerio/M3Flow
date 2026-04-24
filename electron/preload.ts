@@ -50,3 +50,10 @@ try {
 } catch (error) {
   console.error('[Preload] Failed to expose dbAPI:', error);
 }
+
+// APIs específicas para la ventana de carga (Splash)
+contextBridge.exposeInMainWorld('electronAPI', {
+  onLoadingLog: (callback: (message: string) => void) => {
+    ipcRenderer.on('loading-log', (_event, message) => callback(message));
+  }
+});

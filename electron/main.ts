@@ -13,8 +13,20 @@ process.env.VITE_PUBLIC = process.env.VITE_DEV_SERVER_URL
 // Importar la base de datos usando require
 const { initDB, databaseAPI, closeDB } = require('./database.ts');
 
-// Inicializa las tablas SQLite al cargar el main process
-initDB();
+// Bloqueo de instancia única para evitar abrir múltiples veces
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    // Si se intenta abrir otra instancia, enfocar la ventana principal
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
 
 // Catch unhandled errors to help debug production crashes
 process.on('uncaughtException', (error) => {
@@ -133,6 +145,7 @@ function createWindow() {
     transparent: true,
     titleBarStyle: 'hidden',
     show: false,
+    backgroundColor: '#00000000',
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -179,7 +192,64 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow)
+let splashWin = null;
+
+function createSplashWindow() {
+  splashWin = new BrowserWindow({
+    width: 500,
+    height: 350,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    webPreferences: {
+      preload: join(__dirname, 'preload.js'),
+    },
+  });
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    splashWin.loadURL(`${process.env.VITE_DEV_SERVER_URL}splash.html`);
+  } else {
+    const splashPath = join(process.env.DIST, 'splash.html');
+    splashWin.loadFile(splashPath).catch(err => {
+      console.error('Failed to load splash screen:', err);
+    });
+  }
+  splashWin.center();
+}
+
+async function initializeApp() {
+  createSplashWindow();
+
+  const sendLog = (msg) => {
+    if (splashWin && !splashWin.isDestroyed()) {
+      splashWin.webContents.send('loading-log', msg);
+    }
+    console.log(`[Init] ${msg}`);
+  };
+
+  // Simular un pequeño delay para que se vea el splash (opcional, pero ayuda a la experiencia)
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  sendLog('Cargando motor de base de datos...');
+  initDB((msg) => sendLog(msg));
+
+  await new Promise(resolve => setTimeout(resolve, 300));
+  sendLog('Preparando interfaz de usuario...');
+  
+  createWindow();
+
+  // Esperar a que la ventana principal esté lista para mostrarse
+  win.once('ready-to-show', () => {
+    setTimeout(() => {
+      if (splashWin && !splashWin.isDestroyed()) {
+        splashWin.close();
+      }
+      win.show();
+    }, 800); // Pequeño buffer para una transición suave
+  });
+}
+
+app.whenReady().then(initializeApp)
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

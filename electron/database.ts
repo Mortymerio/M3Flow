@@ -8,7 +8,13 @@ const db = new Database(dbPath);
 
 db.pragma('journal_mode = WAL'); // Performance premium (Write-Ahead Logging)
 
-const initDB = () => {
+const initDB = (onProgress?: (msg: string) => void) => {
+  const log = (msg: string) => {
+    console.log(msg);
+    if (onProgress) onProgress(msg);
+  };
+
+  log('Iniciando base de datos...');
   const initScript = `
     CREATE TABLE IF NOT EXISTS Notebooks (
       id TEXT PRIMARY KEY,
@@ -47,22 +53,28 @@ const initDB = () => {
   `;
   
   db.exec(initScript);
+  log('Tablas del sistema verificadas.');
   
   // Migración: Añadir columna reminderAt si no existe
   try {
     db.prepare('ALTER TABLE Notes ADD COLUMN reminderAt INTEGER').run();
-    console.log('Γ£à Migration: reminderAt column added successfully.');
+    log('Migración: Columna reminderAt añadida.');
   } catch (e) {
-    // Si ya existe, fallar├í silenciosamente lo cual est├í bien
+    // Si ya existe, fallará silenciosamente lo cual está bien
   }
 
-  console.log('Γ£ª Database initialized successfully at:', dbPath);
+  log('Configurando parámetros de rendimiento...');
+  db.pragma('journal_mode = WAL');
+
+  log('Base de datos inicializada correctamente.');
 
   // Sembrar datos de prueba iniciales (Solo si la DB está vacía)
   const stmt = db.prepare('SELECT COUNT(*) as count FROM Notebooks');
   const size = stmt.get() as { count: number };
   if (size.count === 0) {
+    log('Poblando base de datos con contenido inicial...');
     seedDatabase();
+    log('Contenido de bienvenida generado.');
   }
 };
 
